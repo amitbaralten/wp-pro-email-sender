@@ -1,0 +1,37 @@
+[
+  {
+    "id": "default",
+    "name": "Default Master List",
+    "createdAt": "2026-08-19",
+    "totalLeads": 5,
+    "sentCount": 0
+  },
+  {
+    "id": "parramatta-scraped-google-businesses",
+    "name": "Parramatta Scraped Google Businesses",
+    "createdAt": "2026-08-18",
+    "totalLeads": 5,
+    "sentCount": 0
+  },
+  {
+    "id": "nsw-plumbers-scraped",
+    "name": "NSW Plumbers Scraped",
+    "createdAt": "2026-08-18",
+    "totalLeads": 6,
+    "sentCount": 0
+  },
+  {
+    "id": "all-nsw-plumbers-scraped",
+    "name": "All NSW Plumbers Scraped",
+    "createdAt": "2026-08-18",
+    "totalLeads": 8,
+    "sentCount": 0
+  },
+  {
+    "id": "google-maps-plumbers-nsw",
+    "name": "Google Maps Plumbers NSW",
+    "createdAt": "2026-08-18",
+    "totalLeads": 93,
+    "sentCount": 0
+  }
+]

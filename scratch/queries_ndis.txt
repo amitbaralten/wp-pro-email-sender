@@ -1,0 +1,47 @@
+# --- NEW SOUTH WALES (NSW) ---
+NDIS provider Sydney NSW Australia
+NDIS support coordination Sydney NSW Australia
+NDIS plan manager Sydney NSW Australia
+NDIS provider Parramatta NSW Australia
+NDIS support coordination Parramatta NSW Australia
+NDIS provider Penrith NSW Australia
+NDIS provider Liverpool NSW Australia
+NDIS provider Campbelltown NSW Australia
+NDIS provider Newcastle NSW Australia
+NDIS provider Wollongong NSW Australia
+NDIS provider Central Coast NSW Australia
+
+# --- VICTORIA (VIC) ---
+NDIS provider Melbourne VIC Australia
+NDIS support coordination Melbourne VIC Australia
+NDIS plan manager Melbourne VIC Australia
+NDIS provider Geelong VIC Australia
+NDIS provider Ballarat VIC Australia
+NDIS provider Bendigo VIC Australia
+NDIS provider Frankston VIC Australia
+NDIS provider Dandenong VIC Australia
+
+# --- QUEENSLAND (QLD) ---
+NDIS provider Brisbane QLD Australia
+NDIS support coordination Brisbane QLD Australia
+NDIS plan manager Brisbane QLD Australia
+NDIS provider Gold Coast QLD Australia
+NDIS provider Sunshine Coast QLD Australia
+NDIS provider Ipswich QLD Australia
+NDIS provider Townsville QLD Australia
+NDIS provider Cairns QLD Australia
+
+# --- WESTERN AUSTRALIA (WA) ---
+NDIS provider Perth WA Australia
+NDIS support coordination Perth WA Australia
+NDIS provider Joondalup WA Australia
+NDIS provider Fremantle WA Australia
+
+# --- SOUTH AUSTRALIA (SA) ---
+NDIS provider Adelaide SA Australia
+NDIS support coordination Adelaide SA Australia
+NDIS plan manager Adelaide SA Australia
+
+# --- TASMANIA & ACT ---
+NDIS provider Hobart TAS Australia
+NDIS provider Canberra ACT Australia
