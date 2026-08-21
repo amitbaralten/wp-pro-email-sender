@@ -34,7 +34,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      {/* Top Navbar */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur-md dark:border-slate-800 dark:bg-slate-900/80">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
@@ -76,19 +75,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </header>
 
-      {/* Main Container */}
       <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-        {/* Top Mailing List Selector */}
         <MailingListSelector lists={lists} activeListId={activeListId} />
 
-        {/* Warmup Banner */}
         <WarmupBanner
           warmupDay={warmupDay}
           dailyLimit={dailyLimit}
           sentToday={sentToday}
         />
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <StatsCard label="Active List Leads" value={stats.total} sublabel="In selected list" />
           <StatsCard
@@ -111,7 +106,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           />
         </div>
 
-        {/* Two-column upper row: CSV Uploader & Test Email */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <CsvUploader activeListId={activeListId} />
@@ -121,7 +115,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </div>
         </div>
 
-        {/* Recipient Lead Table */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-slate-900 dark:text-white">

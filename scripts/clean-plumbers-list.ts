@@ -24,20 +24,16 @@ async function main() {
     const email = u.email.toLowerCase().trim();
     if (!email || seenEmails.has(email)) continue;
 
-    // Filter out non-Australian / non-plumbing domain noise
     const domain = u.website ? new URL(u.website).hostname.toLowerCase() : email.split("@")[1];
     
-    // Ignore non-AU TLDs like .jp, .id, .cc
     if (/\.(jp|id|cc|cn|ru|de|fr|br|kr)$/i.test(domain) || /\.(jp|id|cc|cn|ru|de|fr|br|kr)$/i.test(email)) {
       continue;
     }
 
-    // Ignore non-English company names
     if (/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/i.test(u.company)) {
       continue;
     }
 
-    // Must be AU domain or plumbing-related domain/company
     const isAu = domain.endsWith(".au") || domain.endsWith(".sydney") || domain.endsWith(".melbourne");
     const isPlumbingRelated = /plumb|drain|flow|pipe|roof|water|gas|hvac|fitout|build|trade|emergency/i.test(
       `${domain} ${u.company}`

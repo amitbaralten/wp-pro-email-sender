@@ -1,6 +1,6 @@
-import { isValidEmail } from "@/lib/email-utils";
+import { isValidEmail } from "./email-utils";
 
-export { isValidEmail } from "@/lib/email-utils";
+export { isValidEmail } from "./email-utils";
 
 export type UserStatus = "pending" | "sent";
 
@@ -22,19 +22,19 @@ export type DeliveryStatus =
 export interface UserRow {
   email: string;
   status: UserStatus;
-  sentAt: string;       // ISO date string (YYYY-MM-DD)
+  sentAt: string;
   firstName: string;
   lastName: string;
   company: string;
   website: string;
   phone: string;
-  address: string;      // mapped from Location, full_address, address
+  address: string;
   title: string;
   fitScore: number | null;
   fitLabel: string;
-  linkedIn: string;     // LinkedIn URL
-  segment: string;      // Category / Industry (e.g. Real Estate, Legal)
-  priority: string;     // e.g. "High"
+  linkedIn: string;
+  segment: string;
+  priority: string;
   emailType: string;
   resendId: string;
   resendStatus: string;
@@ -115,7 +115,6 @@ function escapeCsvCell(value: string): string {
   return `"${normalized.replace(/"/g, '""')}"`;
 }
 
-/** Robust CSV parser supporting standard leads AND gosom/google-maps-scraper outputs */
 export function parseUsersCsv(csvText: string): UserRow[] {
   const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   if (!lines.length) return [];
@@ -131,7 +130,6 @@ export function parseUsersCsv(csvText: string): UserRow[] {
     return -1;
   };
 
-  // Standard & Google Maps Scraper column aliases
   const emailIdx   = idx("email", "emails", "e-mail", "mail");
   const firstIdx   = idx("first name", "firstname", "first_name");
   const lastIdx    = idx("last name", "lastname", "last_name");
@@ -168,19 +166,6 @@ export function parseUsersCsv(csvText: string): UserRow[] {
     .map((cols): UserRow | null => {
       const get = (i: number) => (i >= 0 ? (cols[i] ?? "").trim() : "");
       let email = get(emailIdx);
-
-      // Fallback domain email from website if email column is empty (e.g. when Fetch Emails was unchecked)
-      if (!email && websiteIdx !== -1) {
-        const site = get(websiteIdx);
-        if (site && site.startsWith("http")) {
-          try {
-            const domain = new URL(site).hostname.replace(/^www\./, "").toLowerCase();
-            if (domain && !domain.includes("facebook") && !domain.includes("instagram") && !domain.includes("google")) {
-              email = `info@${domain}`;
-            }
-          } catch {}
-        }
-      }
 
       if (!email) return null;
 

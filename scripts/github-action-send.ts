@@ -1,11 +1,16 @@
-import fs from "fs";
 import path from "path";
-import { parseUsersCsv, serializeUsersCsv, UserRow } from "../lib/csv-parser";
+import fs from "fs";
 import { buildEmailSubject, buildEmailHtml } from "../lib/email-template";
 import { getResendClient } from "../lib/resend";
 import { getDailyLimit, getWarmupDayNumber } from "../lib/warmup";
+import {
+  getDailySentCount,
+  isValidEmail,
+  readListUsersCsv,
+  withListLock,
+  writeListUsersCsv,
+} from "../lib/csv";
 
-// Load .env.local if running locally
 const envPath = path.join(__dirname, "..", ".env.local");
 if (fs.existsSync(envPath)) {
   const lines = fs.readFileSync(envPath, "utf-8").split("\n");
@@ -21,17 +26,20 @@ if (fs.existsSync(envPath)) {
 }
 
 async function runDailyActionSender() {
-  console.log("🚀 Starting GitHub Actions Daily Email Dispatcher...");
+  console.log("Starting GitHub Actions daily email dispatcher...");
 
   const warmupDay = getWarmupDayNumber();
-  const warmupLimit = getDailyLimit();
-  const DAILY_MAX_EMAILS = Math.min(100, warmupLimit);
+  const dailyMaxEmails = getDailyLimit();
 
-  console.log(`📈 Warmup Schedule: Day ${warmupDay} | Calculated Daily Cap: ${DAILY_MAX_EMAILS} emails/day`);
+  console.log(`Warmup schedule: day ${warmupDay}; daily cap ${dailyMaxEmails} emails.`);
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    throw new Error("❌ RESEND_API_KEY secret is missing in environment.");
+    throw new Error("RESEND_API_KEY secret is missing in environment.");
+  }
+
+  if (process.env.GITHUB_ACTIONS === "true" && !process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error("BLOB_READ_WRITE_TOKEN is required in GitHub Actions so send state persists outside git.");
   }
 
   const resend = getResendClient();
@@ -39,83 +47,81 @@ async function runDailyActionSender() {
   const replyTo = process.env.RESEND_REPLY_TO || "info@wppro.au";
 
   const listId = process.env.TARGET_LIST_ID || "google-maps-plumbers";
-  const listPath = path.join(__dirname, "..", "public", "lists", `${listId}.csv`);
 
-  if (!fs.existsSync(listPath)) {
-    console.log(`⚠️ List file not found at '${listPath}'. Exiting.`);
-    return;
-  }
+  await withListLock(listId, async () => {
+    const users = await readListUsersCsv(listId);
 
-  const rawText = fs.readFileSync(listPath, "utf-8");
-  const users = parseUsersCsv(rawText);
-  const today = new Date().toISOString().slice(0, 10);
-
-  const sentToday = users.filter((u) => u.sentAt === today).length;
-  console.log(`📊 Sent today so far: ${sentToday}/${DAILY_MAX_EMAILS}`);
-
-  if (sentToday >= DAILY_MAX_EMAILS) {
-    console.log(`🛑 Daily quota of ${DAILY_MAX_EMAILS} emails reached for today (${today}). Exiting.`);
-    return;
-  }
-
-  const remainingQuota = DAILY_MAX_EMAILS - sentToday;
-  const pendingUsers = users.filter((u) => u.status !== "sent");
-  console.log(`📌 Found ${pendingUsers.length} pending leads. Preparing to dispatch up to ${remainingQuota} emails...`);
-
-  if (!pendingUsers.length) {
-    console.log("🎉 All leads in this list have already been sent!");
-    return;
-  }
-
-  const toSend = pendingUsers.slice(0, remainingQuota);
-  let successCount = 0;
-
-  for (let i = 0; i < toSend.length; i++) {
-    const user = toSend[i];
-    console.log(`\n[${i + 1}/${toSend.length}] Dispatching email to: ${user.company} (${user.email})...`);
-
-    const subject = buildEmailSubject(user);
-    const html = buildEmailHtml(user);
-
-    try {
-      const res = await resend.emails.send({
-        from,
-        to: user.email,
-        replyTo,
-        subject,
-        html,
-      });
-
-      if (res.error) {
-        console.error(`  ❌ Failed to send to ${user.email}:`, res.error.message);
-        user.resendError = res.error.message;
-      } else {
-        user.status = "sent";
-        user.sentAt = today;
-        user.resendId = res.data?.id || "";
-        user.resendStatus = "sent";
-        user.deliveryStatus = "sent";
-        user.resendSubject = subject;
-        user.resendFrom = from;
-        user.resendTo = user.email;
-
-        successCount++;
-        console.log(`  ✓ Successfully sent! Resend ID: ${user.resendId}`);
-      }
-    } catch (err: unknown) {
-      console.error(`  ❌ Exception sending to ${user.email}:`, err instanceof Error ? err.message : err);
-      user.resendError = err instanceof Error ? err.message : String(err);
+    if (!users.length) {
+      console.log(`List '${listId}' is empty or missing. Exiting.`);
+      return;
     }
 
-    // 1-second delay between sends to respect rate limits
-    await new Promise((r) => setTimeout(r, 1000));
-  }
+    const today = new Date().toISOString().slice(0, 10);
+    const sentToday = getDailySentCount(users);
+    console.log(`Sent today so far: ${sentToday}/${dailyMaxEmails}`);
 
-  console.log(`\n🎉 Dispatch complete! Successfully sent ${successCount} emails today.`);
+    if (sentToday >= dailyMaxEmails) {
+      console.log(`Daily quota of ${dailyMaxEmails} emails reached for ${today}. Exiting.`);
+      return;
+    }
 
-  const updatedCsv = serializeUsersCsv(users);
-  fs.writeFileSync(listPath, updatedCsv, "utf-8");
-  console.log(`📁 Updated CSV state saved to: ${listPath}`);
+    const remainingQuota = dailyMaxEmails - sentToday;
+    const pendingUsers = users.filter((u) => u.status === "pending" && isValidEmail(u.email));
+    console.log(`Found ${pendingUsers.length} valid pending leads. Dispatching up to ${remainingQuota}.`);
+
+    if (!pendingUsers.length) {
+      console.log("No valid pending leads to send.");
+      return;
+    }
+
+    const toSend = pendingUsers.slice(0, remainingQuota);
+    let successCount = 0;
+
+    for (let i = 0; i < toSend.length; i++) {
+      const user = toSend[i];
+      console.log(`[${i + 1}/${toSend.length}] Dispatching email.`);
+
+      const subject = buildEmailSubject(user);
+      const html = buildEmailHtml(user);
+
+      try {
+        const res = await resend.emails.send({
+          from,
+          to: user.email,
+          replyTo,
+          subject,
+          html,
+        });
+
+        if (res.error) {
+          console.error("Send failed:", res.error.message);
+          user.resendError = res.error.message;
+        } else {
+          user.status = "sent";
+          user.sentAt = today;
+          user.resendId = res.data?.id || "";
+          user.resendStatus = "sent";
+          user.deliveryStatus = "sent";
+          user.resendSubject = subject;
+          user.resendFrom = from;
+          user.resendTo = user.email;
+
+          successCount++;
+          console.log("Send accepted by Resend.");
+        }
+      } catch (err: unknown) {
+        console.error("Exception sending email:", err instanceof Error ? err.message : err);
+        user.resendError = err instanceof Error ? err.message : String(err);
+      }
+
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    console.log(`Dispatch complete. Successfully sent ${successCount} emails today.`);
+
+    await writeListUsersCsv(listId, users);
+    console.log("Updated list state saved.");
+  });
 }
 
 runDailyActionSender().catch((err) => {

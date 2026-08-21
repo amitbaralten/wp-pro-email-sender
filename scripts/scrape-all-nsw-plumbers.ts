@@ -124,7 +124,6 @@ async function scrapeAllNSWPlumbers(): Promise<UserRow[]> {
 
           if (!isAustralianDomain(domain)) continue;
 
-          // Exclude aggregators & directories
           if (
             domain.includes("bing.com") ||
             domain.includes("google") ||
@@ -213,7 +212,6 @@ async function extractEmailAndPhone(
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 8000 });
     const content = await page.content();
 
-    // Mailto regex
     const mailto = content.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
     if (mailto && mailto[1]) {
       email = mailto[1].toLowerCase();
@@ -237,7 +235,6 @@ async function extractEmailAndPhone(
       }
     }
 
-    // AU Phone regex
     const phoneMatch = content.match(/(\(02\)\s*\d{4}\s*\d{4}|04\d{2}\s*\d{3}\s*\d{3}|1300\s*\d{3}\s*\d{3})/);
     if (phoneMatch) phone = phoneMatch[0];
 
@@ -260,7 +257,6 @@ async function main() {
     fs.writeFileSync(outputPath, csvContent, "utf-8");
     console.log(`📁 Saved CSV to: ${outputPath}`);
 
-    // Create list if doesn't exist, else update
     const lists = await getMailingLists();
     if (!lists.some((l) => l.id === listId)) {
       await createMailingList(listName, csvContent);

@@ -52,7 +52,6 @@ export function CsvUploader({ activeListId = "default" }: CsvUploaderProps) {
       inputRef.current.files = dt.files;
       setFileName(file.name);
 
-      // Auto propose list name from file name
       if (!newListName) {
         const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ");
         setNewListName(cleanName);
@@ -117,7 +116,6 @@ export function CsvUploader({ activeListId = "default" }: CsvUploaderProps) {
           />
         </div>
 
-        {/* Option to create as new list */}
         <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-slate-800/60 dark:bg-slate-950/40">
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
             <input

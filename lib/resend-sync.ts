@@ -1,7 +1,6 @@
 import { getResendClient } from "@/lib/resend";
-import { readUsersCsv, writeUsersCsv, UserRow, DeliveryStatus } from "@/lib/csv";
+import { readListUsersCsv, writeListUsersCsv, DeliveryStatus } from "@/lib/csv";
 
-/** Terminal status set that no longer needs active polling */
 const FINAL_STATUSES: Set<DeliveryStatus> = new Set([
   "delivered",
   "bounced",
@@ -11,7 +10,7 @@ const FINAL_STATUSES: Set<DeliveryStatus> = new Set([
   "canceled",
 ]);
 
-export async function syncResendStatuses(): Promise<{
+export async function syncResendStatuses(listId = "default"): Promise<{
   error: string | null;
   checked: number;
   updated: number;
@@ -19,7 +18,7 @@ export async function syncResendStatuses(): Promise<{
 }> {
   try {
     const resend = getResendClient();
-    const users = await readUsersCsv();
+    const users = await readListUsersCsv(listId);
 
     let checked = 0;
     let updated = 0;
@@ -28,7 +27,6 @@ export async function syncResendStatuses(): Promise<{
     for (let i = 0; i < users.length; i++) {
       const user = users[i];
 
-      // Only check emails that have a resend ID and haven't reached terminal delivery status
       if (!user.resendId || FINAL_STATUSES.has(user.deliveryStatus)) {
         continue;
       }
@@ -70,7 +68,7 @@ export async function syncResendStatuses(): Promise<{
     }
 
     if (updated > 0) {
-      await writeUsersCsv(users);
+      await writeListUsersCsv(listId, users);
     }
 
     return { error: null, checked, updated, finalized };

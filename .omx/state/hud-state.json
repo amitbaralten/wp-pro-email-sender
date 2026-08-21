@@ -1,0 +1,5 @@
+{
+  "last_turn_at": "2026-08-21T11:41:09.551Z",
+  "turn_count": 7,
+  "last_agent_output": "For GitHub Actions, set these repository **Secrets**:\n\n```text\nRESEND_API_KEY\nBLOB_READ_WRITE_TOKEN\n"
+}

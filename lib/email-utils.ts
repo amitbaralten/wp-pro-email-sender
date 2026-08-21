@@ -12,11 +12,9 @@ export function cleanCompanyName(company?: string): string {
 
 export function extractSuburb(address: string): string {
   if (!address) return "";
-  // Split comma or newline
   const parts = address.split(/,|\n/).map((p) => p.trim()).filter(Boolean);
   if (!parts.length) return "";
   
-  // Try finding part that matches Australian Suburb/City patterns or take part before state/postcode
   for (const part of parts) {
     const cleaned = part.replace(/\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\s*\d{4}\b/gi, "").trim();
     if (cleaned && !/^\d+/.test(cleaned) && cleaned.length < 30) {

@@ -7,7 +7,6 @@ import { createMailingList, writeListUsersCsv, getMailingLists } from "../lib/cs
 async function scrapeAllNSWPlumbersPlaywright(): Promise<UserRow[]> {
   console.log("🚀 Launching Full 258-Suburb Playwright Google Maps Scraper...");
 
-  // Load all 258 NSW suburbs from queries file
   const queriesFile = path.join(__dirname, "..", "scratch", "queries_nsw_all_plumbers.txt");
   let queries: string[] = [];
 
@@ -74,7 +73,6 @@ async function scrapeAllNSWPlumbersPlaywright(): Promise<UserRow[]> {
       await page.goto(mapsUrl, { waitUntil: "domcontentloaded", timeout: 18000 });
       await page.waitForTimeout(1500);
 
-      // Handle Google Cookie Consent Banner
       try {
         const consentBtn = page.locator(
           'button:has-text("Accept all"), button:has-text("I agree"), button:has-text("Alle akzeptieren")'
@@ -85,7 +83,6 @@ async function scrapeAllNSWPlumbersPlaywright(): Promise<UserRow[]> {
         }
       } catch {}
 
-      // Scroll results panel
       const feed = page.locator('div[role="feed"]');
       if (await feed.isVisible({ timeout: 3500 })) {
         for (let i = 0; i < 4; i++) {
@@ -185,7 +182,6 @@ async function scrapeAllNSWPlumbersPlaywright(): Promise<UserRow[]> {
           allLeads.push(newLead);
           console.log(`  ✓ Harvested: ${company} | Email: ${email} | Phone: ${phone}`);
 
-          // Save incrementally every 5 leads
           if (allLeads.length % 5 === 0) {
             const csvContent = serializeUsersCsv(allLeads);
             fs.writeFileSync(listPath, csvContent, "utf-8");
@@ -201,7 +197,6 @@ async function scrapeAllNSWPlumbersPlaywright(): Promise<UserRow[]> {
 
   await browser.close();
 
-  // Final Save
   const csvContent = serializeUsersCsv(allLeads);
   fs.writeFileSync(listPath, csvContent, "utf-8");
   await writeListUsersCsv(listId, allLeads);

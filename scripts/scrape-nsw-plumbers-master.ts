@@ -83,7 +83,6 @@ async function scrapeNSWPlumbers(): Promise<UserRow[]> {
 
           const domain = urlObj.hostname.replace(/^www\./, "").toLowerCase();
 
-          // Exclude generic directory & social sites
           if (
             domain.includes("bing.com") ||
             domain.includes("google") ||
@@ -170,7 +169,6 @@ async function extractEmailAndPhoneFromWebsite(
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 8000 });
     const content = await page.content();
 
-    // Mailto regex
     const mailto = content.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
     if (mailto && mailto[1]) {
       email = mailto[1].toLowerCase();
@@ -193,7 +191,6 @@ async function extractEmailAndPhoneFromWebsite(
       }
     }
 
-    // Tel regex for AU phones
     const tel = content.match(/tel:([0-9\s+()-]+)/i);
     if (tel && tel[1]) {
       phone = tel[1].trim();

@@ -31,7 +31,9 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 25;
 
-  const filteredUsers = users.filter((u) => {
+  const filteredRows = users
+    .map((user, index) => ({ user, index }))
+    .filter(({ user: u }) => {
     const q = search.toLowerCase();
     const matchesSearch =
       u.email.toLowerCase().includes(q) ||
@@ -52,19 +54,20 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
     return true;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
-  const paginatedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const filteredUsers = filteredRows.map(({ user }) => user);
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const paginatedRows = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const allFilteredSelected =
-    paginatedUsers.length > 0 &&
-    paginatedUsers.every((u) => selectedEmails.has(u.email.toLowerCase()));
+    paginatedRows.length > 0 &&
+    paginatedRows.every(({ user }) => selectedEmails.has(user.email.toLowerCase()));
 
   function toggleSelectAll() {
     const next = new Set(selectedEmails);
     if (allFilteredSelected) {
-      paginatedUsers.forEach((u) => next.delete(u.email.toLowerCase()));
+      paginatedRows.forEach(({ user }) => next.delete(user.email.toLowerCase()));
     } else {
-      paginatedUsers.forEach((u) => next.add(u.email.toLowerCase()));
+      paginatedRows.forEach(({ user }) => next.add(user.email.toLowerCase()));
     }
     setSelectedEmails(next);
   }
@@ -112,10 +115,8 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      {/* Table Toolbar */}
       <div className="flex flex-col gap-4 border-b border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
         <div className="flex flex-wrap items-center gap-2">
-          {/* Search bar */}
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
@@ -130,7 +131,6 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
             />
           </div>
 
-          {/* Filter Pills */}
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-950">
             {(["all", "pending", "sent", "delivered", "bounced"] as const).map((filter) => (
               <button
@@ -151,7 +151,6 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
           </div>
         </div>
 
-        {/* Action bar */}
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCsv}
@@ -177,7 +176,6 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
         </div>
       </div>
 
-      {/* Table Render */}
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="border-b border-slate-200 bg-slate-50 uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-400">
@@ -200,21 +198,20 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {paginatedUsers.length === 0 ? (
+            {paginatedRows.length === 0 ? (
               <tr>
                 <td colSpan={8} className="p-8 text-center text-slate-400">
                   No recipient leads match your filter or search query.
                 </td>
               </tr>
             ) : (
-              paginatedUsers.map((u) => {
-                const globalIndex = users.findIndex((orig) => orig.email === u.email);
+              paginatedRows.map(({ user: u, index: globalIndex }) => {
                 const isSelected = selectedEmails.has(u.email.toLowerCase());
                 const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ");
 
                 return (
                   <tr
-                    key={u.email}
+                    key={`${u.email}-${globalIndex}`}
                     className={`transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-800/40 ${
                       isSelected ? "bg-wppro-50/40 dark:bg-wppro-950/20" : ""
                     }`}
@@ -329,7 +326,6 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
         </table>
       </div>
 
-      {/* Pagination Footer */}
       <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 dark:border-slate-800">
         <div className="text-xs text-slate-500">
           Page {currentPage} of {totalPages}
@@ -352,7 +348,6 @@ export function EmailTable({ users, activeListId = "default" }: EmailTableProps)
         </div>
       </div>
 
-      {/* Live Preview Modal */}
       {previewUser && (
         <EmailPreviewModal user={previewUser} onClose={() => setPreviewUser(null)} />
       )}

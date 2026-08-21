@@ -2,6 +2,13 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import {
+  LEGACY_AUTH_COOKIE_NAME,
+  SESSION_COOKIE_NAME,
+  createSessionToken,
+  getRequiredAuthConfig,
+  getSessionCookieOptions,
+} from "@/lib/auth";
 
 export type LoginState = { error: string | null } | null;
 
@@ -9,22 +16,18 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   const email = (formData.get("email") as string | null)?.trim();
   const password = (formData.get("password") as string | null)?.trim();
 
-  const envEmail = process.env.DASHBOARD_EMAIL?.trim();
-  const envPassword = process.env.DASHBOARD_PASSWORD?.trim();
-  const secret = process.env.AUTH_SECRET?.trim() || "default_auth_secret";
+  const auth = getRequiredAuthConfig();
 
-  if (envEmail && envPassword) {
-    if (email !== envEmail || password !== envPassword) {
-      return { error: "Invalid email or password." };
-    }
+  if (email !== auth.email || password !== auth.password) {
+    return { error: "Invalid email or password." };
   }
 
+  const token = await createSessionToken(auth.email, auth.secret);
   const cookieStore = await cookies();
-  cookieStore.set("auth_token", secret, {
+  cookieStore.set(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
+  cookieStore.set(LEGACY_AUTH_COOKIE_NAME, "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 7,
+    expires: new Date(0),
     path: "/",
   });
 

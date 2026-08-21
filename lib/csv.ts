@@ -10,9 +10,15 @@ import {
 
 export * from "./csv-parser";
 
-const LISTS_DIR = path.join(process.cwd(), "public", "lists");
+const DATA_DIR = process.env.APP_DATA_DIR || path.join(process.cwd(), "webdata");
+const LISTS_DIR = path.join(DATA_DIR, "lists");
 const MANIFEST_PATH = path.join(LISTS_DIR, "manifest.json");
-const DEFAULT_CSV_PATH = path.join(process.cwd(), "public", "users.csv");
+const DEFAULT_CSV_PATH = path.join(LISTS_DIR, "default.csv");
+const LEGACY_LISTS_DIR = path.join(process.cwd(), "public", "lists");
+const LEGACY_MANIFEST_PATH = path.join(LEGACY_LISTS_DIR, "manifest.json");
+const LEGACY_DEFAULT_CSV_PATH = path.join(process.cwd(), "public", "users.csv");
+
+const listLocks = new Map<string, Promise<unknown>>();
 
 function getListFilePath(listId: string): string {
   if (listId === "default" || listId === "users") {
@@ -22,19 +28,73 @@ function getListFilePath(listId: string): string {
   return path.join(LISTS_DIR, `${safeId}.csv`);
 }
 
-export async function getMailingLists(): Promise<MailingListMeta[]> {
+function getLegacyListFilePath(listId: string): string {
+  if (listId === "default" || listId === "users") {
+    return LEGACY_DEFAULT_CSV_PATH;
+  }
+  const safeId = listId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  return path.join(LEGACY_LISTS_DIR, `${safeId}.csv`);
+}
+
+function ensureListsDir(): void {
   if (!fs.existsSync(LISTS_DIR)) {
     fs.mkdirSync(LISTS_DIR, { recursive: true });
   }
+}
 
-  let manifest: MailingListMeta[] = [];
-  if (fs.existsSync(MANIFEST_PATH)) {
-    try {
-      manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
-    } catch {
-      manifest = [];
-    }
+function readManifest(): MailingListMeta[] {
+  const manifestPath = fs.existsSync(MANIFEST_PATH) ? MANIFEST_PATH : LEGACY_MANIFEST_PATH;
+  if (!fs.existsSync(manifestPath)) return [];
+
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+  } catch {
+    return [];
   }
+}
+
+function writeJsonAtomic(filePath: string, value: unknown): void {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(value, null, 2), "utf-8");
+  fs.renameSync(tmpPath, filePath);
+}
+
+function writeTextAtomic(filePath: string, value: string): void {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpPath, value, "utf-8");
+  fs.renameSync(tmpPath, filePath);
+}
+
+export async function withListLock<T>(listId: string, task: () => Promise<T>): Promise<T> {
+  const key = listId || "default";
+  const previous = listLocks.get(key) || Promise.resolve();
+  const next = previous.catch(() => undefined).then(task);
+
+  listLocks.set(
+    key,
+    next.finally(() => {
+      if (listLocks.get(key) === next) {
+        listLocks.delete(key);
+      }
+    })
+  );
+
+  return next;
+}
+
+export async function getMailingLists(): Promise<MailingListMeta[]> {
+  ensureListsDir();
+  const manifest = readManifest();
 
   const defaultIdx = manifest.findIndex((m) => m.id === "default");
   const defaultUsers = await readListUsersCsv("default");
@@ -54,7 +114,7 @@ export async function getMailingLists(): Promise<MailingListMeta[]> {
     manifest[defaultIdx] = defaultMeta;
   }
 
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2), "utf-8");
+  writeJsonAtomic(MANIFEST_PATH, manifest);
   return manifest;
 }
 
@@ -80,7 +140,7 @@ export async function createMailingList(name: string, csvText?: string): Promise
   await writeListUsersCsv(safeId, initialUsers);
 
   lists.push(newMeta);
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(lists, null, 2), "utf-8");
+  writeJsonAtomic(MANIFEST_PATH, lists);
 
   return newMeta;
 }
@@ -97,7 +157,7 @@ export async function deleteMailingList(listId: string): Promise<void> {
 
   const lists = await getMailingLists();
   const updated = lists.filter((l) => l.id !== listId);
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(updated, null, 2), "utf-8");
+  writeJsonAtomic(MANIFEST_PATH, updated);
 }
 
 export async function readListUsersCsv(listId = "default"): Promise<UserRow[]> {
@@ -123,6 +183,11 @@ export async function readListUsersCsv(listId = "default"): Promise<UserRow[]> {
     return parseUsersCsv(fs.readFileSync(filePath, "utf-8"));
   }
 
+  const legacyFilePath = getLegacyListFilePath(listId);
+  if (fs.existsSync(legacyFilePath)) {
+    return parseUsersCsv(fs.readFileSync(legacyFilePath, "utf-8"));
+  }
+
   return [];
 }
 
@@ -143,11 +208,7 @@ export async function writeListUsersCsv(listId = "default", users: UserRow[]): P
     }
   }
 
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(filePath, serialized, "utf-8");
+  writeTextAtomic(filePath, serialized);
 
   if (fs.existsSync(MANIFEST_PATH)) {
     try {
@@ -156,10 +217,9 @@ export async function writeListUsersCsv(listId = "default", users: UserRow[]): P
       if (idx !== -1) {
         manifest[idx].totalLeads = users.length;
         manifest[idx].sentCount = users.filter((u) => u.status === "sent").length;
-        fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 2), "utf-8");
+        writeJsonAtomic(MANIFEST_PATH, manifest);
       }
     } catch {
-      // Ignore manifest update errors
     }
   }
 }

@@ -118,7 +118,6 @@ export function MailingListSelector({ lists, activeListId }: MailingListSelector
         </div>
       </div>
 
-      {/* Modal to Create New List */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900">

@@ -37,7 +37,6 @@ async function dedupeAndCleanList(listId: string) {
     const email = u.email.toLowerCase().trim();
     if (!email) continue;
 
-    // 1. Strict Duplicate Email Filter
     if (seenEmails.has(email)) continue;
 
     let domain = "";
@@ -47,12 +46,10 @@ async function dedupeAndCleanList(listId: string) {
       domain = email.split("@")[1] || "";
     }
 
-    // 2. Filter out generic suppliers / real estate franchises / directories
     if (SUPPLIER_AND_DIRECTORY_DOMAINS.some((d) => domain.includes(d) || email.includes(d))) {
       continue;
     }
 
-    // 3. Strict Duplicate Domain Filter (Max 1 lead per website domain)
     if (domain && seenDomains.has(domain)) continue;
 
     seenEmails.add(email);

@@ -4,70 +4,53 @@ import { chromium } from "playwright";
 import { parseUsersCsv, serializeUsersCsv, UserRow } from "../lib/csv-parser";
 import { writeListUsersCsv, getMailingLists, createMailingList } from "../lib/csv";
 
-// 300+ NSW Suburbs and Regional Towns
 const ALL_NSW_SUBURBS = [
-  // SYDNEY CITY & EAST
   "Sydney CBD", "Surry Hills", "Pyrmont", "Ultimo", "Darlinghurst", "Paddington", "Waterloo", "Alexandria", "Mascot",
   "Rosebery", "Zetland", "Redfern", "Moore Park", "Bondi", "Bondi Junction", "Coogee", "Maroubra", "Randwick", "Vaucluse",
   "Double Bay", "Rose Bay", "Botany", "Pagewood", "Matraville",
 
-  // INNER WEST & CANTERBURY-BANKSTOWN
   "Newtown", "Marrickville", "Ashfield", "Burwood", "Strathfield", "Leichhardt", "Five Dock", "Balmain", "Glebe",
   "Stanmore", "Petersham", "Dulwich Hill", "Enfield", "Concord", "Homebush", "Bankstown", "Padstow", "Revesby",
   "Panania", "Condell Park", "Greenacre", "Punchbowl", "Campsie", "Belmore", "Lakemba", "Yagoona",
 
-  // WESTERN SYDNEY & PARRAMATTA
   "Parramatta", "Westmead", "Auburn", "Lidcombe", "Granville", "Guildford", "Merrylands", "Chester Hill", "Silverwater",
   "Rosehill", "Harris Park", "Dundas", "Ermington", "Rydalmere", "Toongabbie", "Pendle Hill", "Northmead", "Greystanes",
 
-  // BLACKTOWN & OUTER WEST
   "Blacktown", "Seven Hills", "Doonside", "Quakers Hill", "Schofields", "Riverstone", "Stanhope Gardens", "The Ponds",
   "Marsden Park", "Mount Druitt", "St Marys", "Penrith", "Emu Plains", "Jamisontown", "Glenmore Park", "Cranebrook",
   "Rooty Hill", "Minchinbury", "Erskine Park", "Wetherill Park", "Smithfield", "Fairfield", "Cabramatta", "Canley Vale",
 
-  // SOUTH WEST SYDNEY & MACARTHUR
   "Liverpool", "Casula", "Moorebank", "Chipping Norton", "Prestons", "Hoxton Park", "Edmondson Park", "Ingleburn",
   "Minto", "Campbelltown", "Macquarie Fields", "Narellan", "Camden", "Gregory Hills", "Oran Park", "Tahmoor", "Picton",
 
-  // SUTHERLAND SHIRE & ST GEORGE
   "Cronulla", "Miranda", "Caringbah", "Sutherland", "Engadine", "Gymea", "Jannali", "Menai", "Kirrawee", "Heathcote",
   "Hurstville", "Rockdale", "Kogarah", "Bexley", "Carlton", "Penshurst", "Oatley", "Mortdale", "Sans Souci", "Arncliffe",
 
-  // NORTH SHORE & NORTHERN SUBURBS
   "North Sydney", "Chatswood", "Ryde", "Eastwood", "Epping", "Macquarie Park", "Hornsby", "Wahroonga", "Turramurra",
   "Pymble", "Gordon", "Killara", "Roseville", "Lindfield", "St Ives", "Asquith", "Berowra", "Pennant Hills", "Thornleigh",
   "Lane Cove", "Crows Nest", "St Leonards", "Willoughby", "Neutral Bay", "Mosman",
 
-  // NORTHERN BEACHES
   "Manly", "Dee Why", "Brookvale", "Mona Vale", "Narrabeen", "Collaroy", "Freshwater", "Balgowlah", "Belrose",
   "Frenchs Forest", "Forestville", "Avalon", "Newport", "Terrey Hills",
 
-  // HILLS DISTRICT
   "Castle Hill", "Baulkham Hills", "Rouse Hill", "Kellyville", "Norwest", "Bella Vista", "Cherrybrook", "Glenhaven",
   "Dural", "Galston", "Kenthurst",
 
-  // HUNTER & CENTRAL COAST
   "Newcastle", "Hamilton", "Kotara", "Charlestown", "Warners Bay", "Maitland", "Kurri Kurri", "Cessnock", "Singleton",
   "Gosford", "Wyong", "Tuggerah", "Erina", "Terrigal", "Woy Woy", "Bateau Bay", "The Entrance", "Lake Haven",
 
-  // ILLAWARRA & SOUTH COAST
   "Wollongong", "Fairy Meadow", "Corrimal", "Bulli", "Helensburgh", "Shellharbour", "Dapto", "Albion Park", "Kiama",
   "Nowra", "Berrors", "Ulladulla", "Batemans Bay", "Moruya", "Narooma", "Bega", "Merimbula",
 
-  // CENTRAL WEST & ORANA
   "Dubbo", "Orange", "Bathurst", "Mudgee", "Parkes", "Forbes", "Cowra", "Lithgow",
 
-  // RIVERINA & MURRAY
   "Wagga Wagga", "Albury", "Lavington", "Griffith", "Deniliquin", "Tumut", "Young",
 
-  // NEW ENGLAND & NORTH WEST
   "Tamworth", "Armidale", "Inverell", "Moree", "Narrabri", "Gunnedah",
 
-  // NORTHERN RIVERS & MID NORTH COAST
   "Port Macquarie", "Coffs Harbour", "Sawtell", "Toormina", "Taree", "Kempsey", "Foster", "Byron Bay", "Tweed Heads",
   "Lismore", "Ballina", "Grafton", "Murwillumbah", "Kingscliff", "Yamba",
 
-  // SOUTHERN HIGHLANDS & CAPITAL REGION
   "Goulburn", "Bowral", "Mittagong", "Moss Vale", "Queanbeyan", "Yass", "Cooma", "Jindabyne"
 ];
 
@@ -174,7 +157,6 @@ async function runMassiveScraper(): Promise<UserRow[]> {
 
           const domain = urlObj.hostname.replace(/^www\./, "").toLowerCase();
 
-          // Filter directories
           if (
             domain.includes("bing.com") ||
             domain.includes("google") ||
@@ -241,7 +223,6 @@ async function runMassiveScraper(): Promise<UserRow[]> {
           allLeads.push(newLead);
           console.log(`  ✓ Harvested Plumber [${suburb}]: ${company} | Email: ${email} | Phone: ${emailData.phone}`);
 
-          // Real-time incremental save every lead
           if (allLeads.length % 5 === 0) {
             const csvContent = serializeUsersCsv(allLeads);
             fs.writeFileSync(listFilePath, csvContent, "utf-8");
@@ -257,7 +238,6 @@ async function runMassiveScraper(): Promise<UserRow[]> {
 
   await browser.close();
 
-  // Final write
   const csvContent = serializeUsersCsv(allLeads);
   fs.writeFileSync(listFilePath, csvContent, "utf-8");
   await writeListUsersCsv(listId, allLeads);

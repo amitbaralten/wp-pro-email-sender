@@ -50,7 +50,6 @@ async function scrapePlumbersFast(): Promise<UserRow[]> {
       await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 25000 });
       await page.waitForTimeout(2000);
 
-      // Handle Cookie Consent
       try {
         const consentBtn = page.locator('button:has-text("Accept all"), button:has-text("I agree")');
         if (await consentBtn.isVisible({ timeout: 2000 })) {
@@ -59,7 +58,6 @@ async function scrapePlumbersFast(): Promise<UserRow[]> {
         }
       } catch {}
 
-      // Scroll Feed
       const feed = page.locator('div[role="feed"]');
       if (await feed.isVisible({ timeout: 5000 })) {
         for (let i = 0; i < 4; i++) {
@@ -68,7 +66,6 @@ async function scrapePlumbersFast(): Promise<UserRow[]> {
         }
       }
 
-      // Find place elements
       const placeLinks = page.locator('a[href*="/maps/place/"]');
       const count = await placeLinks.count();
       console.log(`📍 Found ${count} place cards for ${region}`);
@@ -86,28 +83,24 @@ async function scrapePlumbersFast(): Promise<UserRow[]> {
           processedCompanies.add(ariaLabel.toLowerCase());
           const company = ariaLabel;
 
-          // Website
           let website = "";
           const webBtn = page.locator('a[data-item-id="authority"], a[data-tooltip*="website"], a[aria-label*="website"]');
           if (await webBtn.count() > 0) {
             website = (await webBtn.first().getAttribute("href")) || "";
           }
 
-          // Address
           let address = region;
           const addrBtn = page.locator('button[data-item-id*="address"], button[aria-label*="Address"]');
           if (await addrBtn.count() > 0) {
             address = (await addrBtn.first().innerText()) || address;
           }
 
-          // Phone
           let phone = "";
           const phoneBtn = page.locator('button[data-item-id*="phone"], button[aria-label*="Phone"]');
           if (await phoneBtn.count() > 0) {
             phone = (await phoneBtn.first().innerText()) || "";
           }
 
-          // Email extraction
           let email = "";
           if (website && website.startsWith("http")) {
             email = await extractEmailFromDomain(context, website);
@@ -155,7 +148,6 @@ async function scrapePlumbersFast(): Promise<UserRow[]> {
             console.log(`  ✓ Scraped: ${company} | Email: ${email} | Phone: ${phone}`);
           }
         } catch (cardErr) {
-          // Skip card error
         }
       }
     } catch (queryErr) {

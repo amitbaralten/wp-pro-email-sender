@@ -10,6 +10,7 @@ import {
   getMailingLists,
   createMailingList,
   deleteMailingList,
+  withListLock,
   UserRow,
   MailingListMeta,
 } from "@/lib/csv";
@@ -17,6 +18,8 @@ import { getResendClient } from "@/lib/resend";
 import { buildEmailSubject, buildEmailHtml } from "@/lib/email-template";
 import { getDailyLimit } from "@/lib/warmup";
 import { syncResendStatuses } from "@/lib/resend-sync";
+
+const UNSENDABLE_DELIVERY_STATUSES = new Set(["bounced", "complained", "suppressed", "canceled"]);
 
 export type UploadState = {
   error: string | null;
@@ -46,38 +49,40 @@ export async function uploadCsvAction(
 
     let targetListId = listId;
 
-    // If user asked to create a new list during upload
     if (newListName) {
       const created = await createMailingList(newListName);
       targetListId = created.id;
     }
 
-    const existingUsers = await readListUsersCsv(targetListId);
-    const sentMap = new Map<string, UserRow>();
-    existingUsers.forEach((u) => {
-      if (u.status === "sent") {
-        sentMap.set(u.email.toLowerCase(), u);
-      }
-    });
+    const { merged, preserved } = await withListLock(targetListId, async () => {
+      const existingUsers = await readListUsersCsv(targetListId);
+      const sentMap = new Map<string, UserRow>();
+      existingUsers.forEach((u) => {
+        if (u.status === "sent") {
+          sentMap.set(u.email.toLowerCase(), u);
+        }
+      });
 
-    let preserved = 0;
-    const merged = incoming.map((user) => {
-      const existing = sentMap.get(user.email.toLowerCase());
-      if (existing) {
-        preserved++;
-        return {
-          ...user,
-          status: existing.status,
-          sentAt: existing.sentAt,
-          resendId: existing.resendId,
-          resendStatus: existing.resendStatus,
-          deliveryStatus: existing.deliveryStatus,
-        };
-      }
-      return user;
-    });
+      let preservedCount = 0;
+      const mergedUsers = incoming.map((user) => {
+        const existing = sentMap.get(user.email.toLowerCase());
+        if (existing) {
+          preservedCount++;
+          return {
+            ...user,
+            status: existing.status,
+            sentAt: existing.sentAt,
+            resendId: existing.resendId,
+            resendStatus: existing.resendStatus,
+            deliveryStatus: existing.deliveryStatus,
+          };
+        }
+        return user;
+      });
 
-    await writeListUsersCsv(targetListId, merged);
+      await writeListUsersCsv(targetListId, mergedUsers);
+      return { merged: mergedUsers, preserved: preservedCount };
+    });
     revalidatePath("/");
 
     return {
@@ -131,92 +136,98 @@ export async function sendBatchAction(
   const customHtml = process.env.RESEND_HTML;
 
   try {
-    const users = await readListUsersCsv(listId);
-    const pendingIndexes: number[] = [];
+    return await withListLock(listId, async () => {
+      const users = await readListUsersCsv(listId);
+      const pendingIndexes: number[] = [];
 
-    const dailyLimit = getDailyLimit();
-    const alreadySentToday = getDailySentCount(users);
-    const remainingSlots = dailyLimit - alreadySentToday;
+      const dailyLimit = getDailyLimit();
+      const alreadySentToday = getDailySentCount(users);
+      const remainingSlots = dailyLimit - alreadySentToday;
 
-    if (remainingSlots <= 0) {
-      return {
-        error: `Daily warmup limit of ${dailyLimit} emails reached for today. Try again tomorrow.`,
-        sent: 0,
-        skipped: 0,
-        dailyLimit,
-        alreadySentToday,
-      };
-    }
-
-    for (let i = 0; i < users.length && pendingIndexes.length < remainingSlots; i++) {
-      if (users[i].status === "pending" && isValidEmail(users[i].email)) {
-        pendingIndexes.push(i);
+      if (remainingSlots <= 0) {
+        return {
+          error: `Daily warmup limit of ${dailyLimit} emails reached for today. Try again tomorrow.`,
+          sent: 0,
+          skipped: 0,
+          dailyLimit,
+          alreadySentToday,
+        };
       }
-    }
 
-    const skippedInvalid = users.filter(
-      (u) => u.status === "pending" && !isValidEmail(u.email)
-    ).length;
+      for (let i = 0; i < users.length && pendingIndexes.length < remainingSlots; i++) {
+        if (
+          users[i].status === "pending" &&
+          isValidEmail(users[i].email) &&
+          !UNSENDABLE_DELIVERY_STATUSES.has(users[i].deliveryStatus)
+        ) {
+          pendingIndexes.push(i);
+        }
+      }
 
-    if (pendingIndexes.length === 0) {
+      const skippedInvalid = users.filter(
+        (u) => u.status === "pending" && !isValidEmail(u.email)
+      ).length;
+
+      if (pendingIndexes.length === 0) {
+        return {
+          error: null,
+          sent: 0,
+          skipped: skippedInvalid,
+          dailyLimit,
+          alreadySentToday,
+        };
+      }
+
+      const resend = getResendClient();
+      const response = await resend.batch.send(
+        pendingIndexes.map((i) => ({
+          from: sender,
+          to: users[i].email,
+          subject: customSubject || buildEmailSubject(users[i]),
+          html: customHtml || buildEmailHtml(users[i]),
+          replyTo,
+        }))
+      );
+
+      if (response.error) {
+        return {
+          error: `Resend error: ${JSON.stringify(response.error)}`,
+          sent: 0,
+          skipped: skippedInvalid,
+          dailyLimit,
+          alreadySentToday,
+        };
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const now = new Date().toISOString();
+      pendingIndexes.forEach((i) => {
+        users[i].status = "sent";
+        users[i].sentAt = today;
+        users[i].resendLastSyncedAt = now;
+        users[i].deliveryStatus = "queued";
+      });
+
+      const batchData = response.data?.data ?? [];
+      batchData.forEach((item, idx) => {
+        const userIdx = pendingIndexes[idx];
+        if (userIdx !== undefined) {
+          users[userIdx].resendId = item.id;
+          users[userIdx].resendStatus = "queued";
+        }
+      });
+
+      await writeListUsersCsv(listId, users);
+      revalidatePath("/");
+
       return {
         error: null,
-        sent: 0,
+        sent: pendingIndexes.length,
         skipped: skippedInvalid,
         dailyLimit,
-        alreadySentToday,
+        alreadySentToday: alreadySentToday + pendingIndexes.length,
       };
-    }
-
-    const resend = getResendClient();
-    const response = await resend.batch.send(
-      pendingIndexes.map((i) => ({
-        from: sender,
-        to: users[i].email,
-        subject: customSubject || buildEmailSubject(users[i]),
-        html: customHtml || buildEmailHtml(users[i]),
-        replyTo,
-      }))
-    );
-
-    if (response.error) {
-      return {
-        error: `Resend error: ${JSON.stringify(response.error)}`,
-        sent: 0,
-        skipped: skippedInvalid,
-        dailyLimit,
-        alreadySentToday,
-      };
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
-    const now = new Date().toISOString();
-    pendingIndexes.forEach((i) => {
-      users[i].status = "sent";
-      users[i].sentAt = today;
-      users[i].resendLastSyncedAt = now;
-      users[i].deliveryStatus = "queued";
     });
-
-    const batchData = response.data?.data ?? [];
-    batchData.forEach((item, idx) => {
-      const userIdx = pendingIndexes[idx];
-      if (userIdx !== undefined) {
-        users[userIdx].resendId = item.id;
-        users[userIdx].resendStatus = "queued";
-      }
-    });
-
-    await writeListUsersCsv(listId, users);
-    revalidatePath("/");
-
-    return {
-      error: null,
-      sent: pendingIndexes.length,
-      skipped: skippedInvalid,
-      dailyLimit,
-      alreadySentToday: alreadySentToday + pendingIndexes.length,
-    };
   } catch (e: unknown) {
     return {
       error: e instanceof Error ? e.message : "Batch send failed.",
@@ -238,7 +249,8 @@ export async function sendSingleEmailAction(
   const replyTo = process.env.RESEND_REPLY_TO || "info@wppro.au";
 
   try {
-    const users = await readListUsersCsv(listId);
+    return await withListLock(listId, async () => {
+      const users = await readListUsersCsv(listId);
     const target =
       users[rowIndex]?.email === emailCheck
         ? rowIndex
@@ -248,6 +260,9 @@ export async function sendSingleEmailAction(
 
     const user = users[target];
     if (!isValidEmail(user.email)) return { error: "Invalid email address." };
+    if (UNSENDABLE_DELIVERY_STATUSES.has(user.deliveryStatus)) {
+      return { error: `Recipient has terminal delivery status '${user.deliveryStatus}' and cannot be resent.` };
+    }
     if (user.status === "sent" && !force) return { error: null };
 
     const resend = getResendClient();
@@ -276,6 +291,7 @@ export async function sendSingleEmailAction(
     await writeListUsersCsv(listId, users);
     revalidatePath("/");
     return { error: null };
+    });
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : "Send failed." };
   }
@@ -289,7 +305,7 @@ export async function syncResendStatusesAction(
   updated: number;
   finalized: number;
 }> {
-  const result = await syncResendStatuses();
+  const result = await withListLock(listId, () => syncResendStatuses(listId));
   if (!result.error) {
     revalidatePath("/");
   }
@@ -303,12 +319,15 @@ export async function deleteUsersAction(
   if (!emails.length) return { error: null, deleted: 0 };
   const emailSet = new Set(emails.map((e) => e.toLowerCase()));
   try {
-    const users = await readListUsersCsv(listId);
-    const before = users.length;
-    const remaining = users.filter((u) => !emailSet.has(u.email.toLowerCase()));
-    await writeListUsersCsv(listId, remaining);
+    const deleted = await withListLock(listId, async () => {
+      const users = await readListUsersCsv(listId);
+      const before = users.length;
+      const remaining = users.filter((u) => !emailSet.has(u.email.toLowerCase()));
+      await writeListUsersCsv(listId, remaining);
+      return before - remaining.length;
+    });
     revalidatePath("/");
-    return { error: null, deleted: before - remaining.length };
+    return { error: null, deleted };
   } catch (e: unknown) {
     return { error: e instanceof Error ? e.message : "Delete failed.", deleted: 0 };
   }

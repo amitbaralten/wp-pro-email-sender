@@ -67,7 +67,6 @@ async function deepScrapeNSWPlumbers(): Promise<UserRow[]> {
           const urlObj = new URL(targetUrl);
           const domain = urlObj.hostname.replace(/^www\./, "").toLowerCase();
 
-          // Exclude generic search engines & social media
           if (
             domain.includes("bing.com") ||
             domain.includes("google") ||
@@ -150,13 +149,11 @@ async function deepCrawlDomainForEmails(context: any, baseUrl: string): Promise<
       await page.goto(pageUrl, { waitUntil: "domcontentloaded", timeout: 7000 });
       const content = await page.content();
 
-      // Mailto links
       const mailtos = content.matchAll(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi);
       for (const m of mailtos) {
         if (m[1]) emails.add(m[1].toLowerCase());
       }
 
-      // Regex matches
       const rawMatches = content.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g);
       if (rawMatches) {
         for (const e of rawMatches) {
@@ -177,9 +174,8 @@ async function deepCrawlDomainForEmails(context: any, baseUrl: string): Promise<
       }
 
       await page.close();
-      if (emails.size > 0) break; // Found emails for this domain
+      if (emails.size > 0) break;
     } catch {
-      // Ignore subpage navigation timeout
     }
   }
 

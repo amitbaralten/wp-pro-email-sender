@@ -20,7 +20,6 @@ export function EmailPreviewModal({ user, onClose }: EmailPreviewModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
       <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-wppro-100 text-wppro-600 dark:bg-wppro-950 dark:text-wppro-400">
@@ -40,7 +39,6 @@ export function EmailPreviewModal({ user, onClose }: EmailPreviewModalProps) {
           </button>
         </div>
 
-        {/* Lead Metadata pill bar */}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/50 px-6 py-2.5 dark:border-slate-800/50 dark:bg-slate-950/40 text-xs">
           <span className="flex items-center gap-1 text-slate-700 font-medium dark:text-slate-300">
             <Mail className="h-3.5 w-3.5 text-slate-400" />
@@ -64,13 +62,11 @@ export function EmailPreviewModal({ user, onClose }: EmailPreviewModalProps) {
           </span>
         </div>
 
-        {/* Subject Header */}
         <div className="border-b border-slate-100 px-6 py-3 dark:border-slate-800">
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Subject:</span>
           <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">{subject}</p>
         </div>
 
-        {/* HTML Body Render */}
         <div className="flex-1 overflow-y-auto p-6">
           <div
             className="prose prose-slate max-w-none text-sm dark:prose-invert"
@@ -78,7 +74,6 @@ export function EmailPreviewModal({ user, onClose }: EmailPreviewModalProps) {
           />
         </div>
 
-        {/* Footer actions */}
         <div className="flex justify-end border-t border-slate-100 px-6 py-3 dark:border-slate-800">
           <button
             onClick={onClose}

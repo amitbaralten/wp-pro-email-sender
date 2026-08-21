@@ -49,7 +49,6 @@ async function scrapePlumbers(): Promise<UserRow[]> {
       await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
       await page.waitForTimeout(2000);
 
-      // Handle Google Cookie Consent
       try {
         const consentBtn = page.locator(
           'button:has-text("Accept all"), button:has-text("I agree"), button:has-text("Alle akzeptieren")'
@@ -60,10 +59,8 @@ async function scrapePlumbers(): Promise<UserRow[]> {
           await page.waitForTimeout(1500);
         }
       } catch {
-        // Consent not present
       }
 
-      // Scroll results panel to load list items
       const feed = page.locator('div[role="feed"]');
       if (await feed.isVisible({ timeout: 5000 })) {
         for (let s = 0; s < 4; s++) {
@@ -113,10 +110,8 @@ async function scrapePlumbers(): Promise<UserRow[]> {
               if (m) fitScore = Math.min(100, Math.round(parseFloat(m[1]) * 20));
             }
           } catch {
-            // Default fit score
           }
 
-          // Extract Email from Plumbing Business Website
           let email = "";
           if (website && website.startsWith("http")) {
             email = await extractEmailFromWebsite(context, website);
@@ -127,7 +122,6 @@ async function scrapePlumbers(): Promise<UserRow[]> {
               const domain = new URL(website).hostname.replace(/^www\./, "");
               email = `info@${domain}`;
             } catch {
-              // ignore
             }
           }
 
@@ -164,7 +158,6 @@ async function scrapePlumbers(): Promise<UserRow[]> {
             console.log(`  ✓ Scraped Plumber: ${company} | Email: ${email} | Phone: ${phone}`);
           }
         } catch (cardErr) {
-          // Skip card error
         }
       }
     } catch (queryErr: unknown) {
@@ -204,7 +197,6 @@ async function extractEmailFromWebsite(context: any, url: string): Promise<strin
       if (valid) return valid.toLowerCase();
     }
   } catch {
-    // Ignore website errors
   }
   return "";
 }

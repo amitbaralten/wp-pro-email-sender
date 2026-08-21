@@ -124,7 +124,6 @@ export function getWPProCopy(businessType: string): ServiceCopy {
   }
 }
 
-/** Pick a subject hook based on a stable hash of the email */
 function pickSubjectHook(email: string, hooks: string[]): string {
   let hash = 0;
   for (let i = 0; i < email.length; i++) hash = (hash * 31 + email.charCodeAt(i)) >>> 0;

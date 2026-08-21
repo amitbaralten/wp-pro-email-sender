@@ -21,11 +21,9 @@ async function scrapeGoogleMaps(query: string, maxResults = 15): Promise<UserRow
 
   const page = await context.newPage();
 
-  // Search URL
   const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
   await page.goto(searchUrl, { waitUntil: "networkidle", timeout: 30000 });
 
-  // Handle Google Consent Dialog if present
   try {
     const consentButton = page.locator(
       'button:has-text("Accept all"), button:has-text("I agree"), button:has-text("Alle akzeptieren")'
@@ -36,17 +34,14 @@ async function scrapeGoogleMaps(query: string, maxResults = 15): Promise<UserRow
       await page.waitForTimeout(2000);
     }
   } catch {
-    // Consent not found, proceed
   }
 
-  // Wait for results feed panel
   try {
     await page.waitForSelector('div[role="feed"]', { timeout: 15000 });
   } catch {
     console.log("⚠️ Could not find Google Maps feed panel.");
   }
 
-  // Scroll down feed panel to load items
   const feed = page.locator('div[role="feed"]');
   for (let i = 0; i < 5; i++) {
     if (await feed.isVisible()) {
@@ -55,7 +50,6 @@ async function scrapeGoogleMaps(query: string, maxResults = 15): Promise<UserRow
     }
   }
 
-  // Extract business cards
   const cards = await page.locator('a[href*="/maps/place/"]').all();
   console.log(`📍 Found ${cards.length} business places on Google Maps.`);
 
@@ -72,38 +66,32 @@ async function scrapeGoogleMaps(query: string, maxResults = 15): Promise<UserRow
       await card.click();
       await page.waitForTimeout(1500);
 
-      // Extract details from side drawer
       const company = ariaLabel;
       
-      // Website link
       let website = "";
       const websiteElem = page.locator('a[data-tooltip*="website"], a[aria-label*="website"]');
       if (await websiteElem.isVisible()) {
         website = (await websiteElem.getAttribute("href")) || "";
       }
 
-      // Address
       let address = "";
       const addressElem = page.locator('button[data-tooltip*="address"], button[aria-label*="Address"]');
       if (await addressElem.isVisible()) {
         address = (await addressElem.innerText()) || "";
       }
 
-      // Phone
       let phone = "";
       const phoneElem = page.locator('button[data-tooltip*="phone"], button[aria-label*="Phone"]');
       if (await phoneElem.isVisible()) {
         phone = (await phoneElem.innerText()) || "";
       }
 
-      // Category
       let category = query.split(" ")[0] || "Business";
       const categoryElem = page.locator('button[jsaction*="category"]');
       if (await categoryElem.isVisible()) {
         category = (await categoryElem.innerText()) || category;
       }
 
-      // Rating
       let fitScore: number | null = 85;
       try {
         const ratingText = await page.locator('span[aria-label*="stars"]').first().getAttribute("aria-label");
@@ -114,22 +102,18 @@ async function scrapeGoogleMaps(query: string, maxResults = 15): Promise<UserRow
           }
         }
       } catch {
-        // Default fit score
       }
 
-      // Extract Email from Website
       let email = "";
       if (website && website.startsWith("http")) {
         email = await extractEmailFromWebsite(context, website);
       }
 
-      // Fallback domain email if not scraped directly
       if (!email && website) {
         try {
           const domain = new URL(website).hostname.replace(/^www\./, "");
           email = `info@${domain}`;
         } catch {
-          // ignore
         }
       }
 
@@ -181,13 +165,11 @@ async function extractEmailFromWebsite(context: any, url: string): Promise<strin
     const content = await sitePage.content();
     await sitePage.close();
 
-    // Mailto regex
     const mailtoMatch = content.match(/mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i);
     if (mailtoMatch && mailtoMatch[1]) {
       return mailtoMatch[1].toLowerCase();
     }
 
-    // Generic email regex
     const emailMatch = content.match(/\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/g);
     if (emailMatch) {
       const valid = emailMatch.find(
@@ -201,7 +183,6 @@ async function extractEmailFromWebsite(context: any, url: string): Promise<strin
       if (valid) return valid.toLowerCase();
     }
   } catch {
-    // ignore website fetch errors
   }
   return "";
 }

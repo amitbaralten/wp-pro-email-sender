@@ -15,7 +15,6 @@ function formatDomainToCompanyName(email: string, website: string): string {
     domain = email.split("@")[1] || "";
   }
 
-  // Remove common TLDs
   const base = domain.replace(/\.(com|net|org)?\.(au)?$/, "").replace(/\/.*$/, "");
   const parts = base.split(/[-._]/).filter(Boolean);
 
@@ -36,7 +35,6 @@ async function enhanceList(listId: string) {
   const updatedUsers: UserRow[] = users.map((u) => {
     let company = u.company.trim();
 
-    // Check if company name is generic or missing
     if (
       !company ||
       /business owner|managing director|home|about|contact|owner|director|undefined|null/i.test(company)

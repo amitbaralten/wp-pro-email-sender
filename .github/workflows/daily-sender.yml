@@ -2,9 +2,7 @@ name: Daily Automated Email Sender
 
 on:
   schedule:
-    # Runs every day at 09:00 AM Sydney time (23:00 UTC)
     - cron: '0 23 * * *'
-  # Allows manual triggering from GitHub Actions tab
   workflow_dispatch:
     inputs:
       target_list_id:
@@ -34,13 +32,6 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL || 'WP Pro <hello@email.wppro.com.au>' }}
           RESEND_REPLY_TO: ${{ secrets.RESEND_REPLY_TO || 'info@wppro.au' }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
           TARGET_LIST_ID: ${{ github.event.inputs.target_list_id || 'google-maps-plumbers' }}
         run: npx tsx scripts/github-action-send.ts
-
-      - name: Commit and Push Updated List State
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/lists/
-          git status
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update daily email send status [skip ci]" && git push)

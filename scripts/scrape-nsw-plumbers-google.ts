@@ -44,13 +44,11 @@ async function scrapeNSWPlumbers(): Promise<UserRow[]> {
       await page.goto(searchUrl, { waitUntil: "domcontentloaded", timeout: 15000 });
       await page.waitForTimeout(1500);
 
-      // Handle consent
       try {
         const consent = page.locator('button:has-text("Accept all"), button:has-text("I agree")');
         if (await consent.isVisible({ timeout: 2000 })) await consent.click();
       } catch {}
 
-      // Extract organic search result links
       const links = await page.locator('a[href^="http"]').all();
 
       for (const linkElem of links) {
@@ -58,7 +56,6 @@ async function scrapeNSWPlumbers(): Promise<UserRow[]> {
           const href = await linkElem.getAttribute("href");
           if (!href) continue;
 
-          // Exclude directory/social sites
           if (
             href.includes("google.") ||
             href.includes("yellowpages") ||
@@ -161,7 +158,6 @@ async function extractEmailFromWebsite(context: any, url: string, domain: string
     }
   } catch {}
 
-  // Fallback domain email
   return `info@${domain}`;
 }
 
