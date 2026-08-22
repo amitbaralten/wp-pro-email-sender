@@ -33,5 +33,10 @@ jobs:
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL || 'WP Pro <hello@email.wppro.com.au>' }}
           RESEND_REPLY_TO: ${{ secrets.RESEND_REPLY_TO || 'info@wppro.au' }}
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL || 'stealth/ox-alpha' }}
+          AI_EMAILS: ${{ vars.AI_EMAILS || '1' }}
+          WARMUP_START_DATE: ${{ vars.WARMUP_START_DATE }}
+          DAILY_SEND_CAP: ${{ vars.DAILY_SEND_CAP }}
           TARGET_LIST_ID: ${{ github.event.inputs.target_list_id || 'google-maps-plumbers' }}
         run: npx tsx scripts/github-action-send.ts

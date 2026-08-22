@@ -14,6 +14,16 @@ export interface ServiceCopy {
   subjectHooks: string[];
 }
 
+/** Personalized copy slots an LLM can fill; any omitted field falls back to the deterministic template. */
+export interface EmailCopyOverrides {
+  subject?: string;
+  opener?: string;
+  painPoint?: string;
+  aiUseCase?: string;
+  valueHook?: string;
+  cta?: string;
+}
+
 export function getWPProCopy(businessType: string): ServiceCopy {
   switch (businessType.toLowerCase()) {
     case "ndis & disability support":
@@ -124,39 +134,34 @@ export function getWPProCopy(businessType: string): ServiceCopy {
   }
 }
 
-function pickSubjectHook(email: string, hooks: string[]): string {
+function hashString(s: string): number {
   let hash = 0;
-  for (let i = 0; i < email.length; i++) hash = (hash * 31 + email.charCodeAt(i)) >>> 0;
-  return hooks[hash % hooks.length];
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  return hash;
 }
 
-export function buildEmailSubject(user: UserRow): string {
-  const firstName = user.firstName?.trim();
+export function buildEmailSubject(user: UserRow, override?: string): string {
+  if (override?.trim()) return override.trim();
+
   const company = cleanCompanyName(user.company);
   const suburb = extractSuburb(user.address || "");
   const emailVal = typeof user.email === "string" ? user.email : "";
-  const businessType = detectBusinessType(emailVal, user.company || "");
-  const copy = getWPProCopy(businessType);
 
-  const companyWithSuburb = company && suburb ? `${company} ${suburb}` : company;
+  if (company) {
+    const variants = [
+      `quick idea for ${company}`,
+      `quick question for ${company}`,
+      `helping ${company} get more work`,
+    ];
+    return variants[hashString(emailVal) % variants.length];
+  }
 
-  if (firstName && companyWithSuburb) {
-    return `${firstName} - AI & digital growth idea for ${companyWithSuburb}?`;
-  }
-  if (firstName) {
-    const hook = pickSubjectHook(emailVal, copy.subjectHooks);
-    return `${firstName} - ${hook}`;
-  }
-  if (companyWithSuburb) {
-    return `AI Integration & Web growth for ${companyWithSuburb}?`;
-  }
-  return `Quick AI Business Integration idea for ${company || "your team"}?`;
+  if (suburb) return `quick idea for a ${suburb} business`;
+  return `quick idea for your business`;
 }
 
-export function buildEmailHtml(user: UserRow): string {
+export function buildEmailHtml(user: UserRow, overrides: EmailCopyOverrides = {}): string {
   const firstName = user.firstName?.trim() || "";
-  const lastName = user.lastName?.trim() || "";
-  const title = user.title?.trim() || "";
   const company = cleanCompanyName(user.company);
   const suburb = extractSuburb(user.address || "");
   const emailVal = typeof user.email === "string" ? user.email : "";
@@ -166,62 +171,46 @@ export function buildEmailHtml(user: UserRow): string {
     (user.emailType || "").toLowerCase().includes("named") ||
     !!firstName
   );
-  const hasLinkedIn = !!(user.linkedIn?.trim());
-  const isHighPri = (user.priority || "").toLowerCase() === "high";
-
   const businessType = detectBusinessType(emailVal, user.company || "");
-  const copy = getWPProCopy(businessType);
 
-  const greeting = isPersonal && firstName ? firstName : company || "there";
+  // Never greet by company name; use first name if we have it, else a warm generic.
+  const greeting = isPersonal && firstName ? firstName : "there";
 
-  const linkedInLine = hasLinkedIn && firstName
-    ? `<p>I was reviewing your work at ${company || "your team"} and wanted to reach out directly.</p>`
-    : "";
+  const where = suburb ? ` around ${suburb}` : "";
+  let opener = company
+    ? `I came across ${company} while looking at ${businessType} businesses${where}.`
+    : `I've been looking at a few ${businessType} businesses${where}.`;
+  if (overrides.opener?.trim()) opener = overrides.opener.trim();
 
-  let opener: string;
-  if (title && company && isPersonal) {
-    opener = `As ${title} at ${company}, you know how vital it is to convert every digital inquiry into a high-value client.`;
-  } else if (company && isPersonal) {
-    opener = `Leading operations at ${company}, you know how crucial it is to convert every inbound inquiry into a high-value customer.`;
-  } else if (company) {
-    opener = `At ${company}, driving consistent growth and streamlining operations is key to outperforming competitors.`;
-  } else {
-    opener = `Driving business growth while keeping team productivity high is a major focus for team leaders right now.`;
+  const painPoint =
+    overrides.painPoint?.trim() ||
+    `From a quick look, there are usually a couple of easy wins on the website and Google side that turn into more enquiries.`;
+
+  const helpLine =
+    overrides.valueHook?.trim() ||
+    `We're WP Pro (wppro.au). We help ${businessType} businesses get more work with faster websites, stronger Google visibility, and simple automation.`;
+
+  let websiteHost = "";
+  try {
+    if (user.website) websiteHost = new URL(user.website).hostname.replace(/^www\./, "");
+  } catch {
+    websiteHost = "";
   }
+  const siteRef = websiteHost ? `your site (${websiteHost})` : "your current website";
 
-  const locationLine = suburb
-    ? `At <strong>WP Pro</strong> (<a href="https://wppro.au/" style="color:#026fc7;text-decoration:none;">wppro.au</a>), we partner with ${businessType} teams in Sydney and across Australia, including businesses near ${suburb}.`
-    : `At <strong>WP Pro</strong> (<a href="https://wppro.au/" style="color:#026fc7;text-decoration:none;">wppro.au</a>), we partner with ${businessType} teams across Australia.`;
-
-  const fullName = [firstName, lastName].filter(Boolean).join(" ");
-  const teamRef = company ? `you and the ${company} team` : fullName || "you and your business";
-
-  const cta = isHighPri
-    ? `Would you be open to a quick 10-minute strategy chat this week to see how an AI Business Integration could work for ${teamRef}? Reply to this email and I'll send over a few convenient times.`
-    : `Would you be open to a quick look at a custom AI & web audit breakdown for ${teamRef}? Simply reply and I'll send over a 2-minute video overview tailored to your setup.`;
+  const ctaText =
+    overrides.cta?.trim() ||
+    `Want me to put together a free, no-obligation proposal with a quick analysis of ${siteRef}? Just reply "proposal" and I'll send it over, or reply "chat" if you'd rather hop on a quick call.`;
 
   return `
-<div style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 600px;">
+<div style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 560px;">
   <p>Hi ${greeting},</p>
-  ${linkedInLine}
-  <p>${opener} ${copy.painPoint}</p>
-  <p>${locationLine}</p>
-  <p>We specialize in four key growth pillars for modern businesses:</p>
-  <ul style="padding-left: 20px; margin: 12px 0;">
-    <li style="margin-bottom: 6px;"><strong>AI Business Integration:</strong> ${copy.aiUseCases}</li>
-    <li style="margin-bottom: 6px;"><strong>High-Converting Web Site Design:</strong> Blazing-fast, ultra-modern WordPress & custom web applications designed to turn visitors into leads.</li>
-    <li style="margin-bottom: 6px;"><strong>Search Engine Optimization (SEO):</strong> Dominating local and national search results to capture high-intent organic traffic.</li>
-    <li style="margin-bottom: 6px;"><strong>Google & Meta Paid Ads:</strong> Scalable, data-driven paid advertising campaigns built for maximum ROI.</li>
-  </ul>
-  <p>${copy.valueHook}</p>
-  <p>${cta}</p>
-  <br>
-  <p style="margin-bottom: 4px;">Best regards,</p>
-  <p style="margin-top: 0; font-weight: bold; color: #0f172a;">WP Pro Team</p>
-  <p style="font-size: 13px; color: #64748b; margin-top: 4px;">
-    <strong>WP Pro</strong> | Digital Growth & AI Integration Specialists<br>
-    Website: <a href="https://wppro.au/" style="color: #026fc7; text-decoration: underline;">https://wppro.au/</a><br>
-    Email: <a href="mailto:hello@wppro.au" style="color: #026fc7; text-decoration: underline;">hello@wppro.au</a>
+  <p>${opener} ${painPoint}</p>
+  <p>${helpLine}</p>
+  <p>${ctaText}</p>
+  <p style="margin-top: 16px;">Cheers,<br>WP Pro Team</p>
+  <p style="font-size: 13px; color: #94a3b8; margin-top: 4px;">
+    WP Pro · <a href="https://wppro.au/" style="color: #64748b; text-decoration: underline;">wppro.au</a>
   </p>
 </div>
   `.trim();

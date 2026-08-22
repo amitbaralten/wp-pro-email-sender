@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { buildEmailSubject, buildEmailHtml } from "../lib/email-template";
+import { buildAiEmail } from "../lib/ai-email";
 import { getResendClient } from "../lib/resend";
 import { getDailyLimit, getWarmupDayNumber } from "../lib/warmup";
 import {
@@ -81,8 +81,7 @@ async function runDailyActionSender() {
       const user = toSend[i];
       console.log(`[${i + 1}/${toSend.length}] Dispatching email.`);
 
-      const subject = buildEmailSubject(user);
-      const html = buildEmailHtml(user);
+      const { subject, html } = await buildAiEmail(user);
 
       try {
         const res = await resend.emails.send({

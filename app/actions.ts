@@ -15,7 +15,7 @@ import {
   MailingListMeta,
 } from "@/lib/csv";
 import { getResendClient } from "@/lib/resend";
-import { buildEmailSubject, buildEmailHtml } from "@/lib/email-template";
+import { buildAiEmail } from "@/lib/ai-email";
 import { getDailyLimit } from "@/lib/warmup";
 import { syncResendStatuses } from "@/lib/resend-sync";
 
@@ -179,15 +179,19 @@ export async function sendBatchAction(
       }
 
       const resend = getResendClient();
-      const response = await resend.batch.send(
-        pendingIndexes.map((i) => ({
+      const messages = [];
+      for (const i of pendingIndexes) {
+        const needAi = !customSubject || !customHtml;
+        const built = needAi ? await buildAiEmail(users[i]) : null;
+        messages.push({
           from: sender,
           to: users[i].email,
-          subject: customSubject || buildEmailSubject(users[i]),
-          html: customHtml || buildEmailHtml(users[i]),
+          subject: customSubject || built!.subject,
+          html: customHtml || built!.html,
           replyTo,
-        }))
-      );
+        });
+      }
+      const response = await resend.batch.send(messages);
 
       if (response.error) {
         return {
@@ -266,8 +270,11 @@ export async function sendSingleEmailAction(
     if (user.status === "sent" && !force) return { error: null };
 
     const resend = getResendClient();
-    const subject = process.env.RESEND_SUBJECT || buildEmailSubject(user);
-    const html = process.env.RESEND_HTML || buildEmailHtml(user);
+    const envSubject = process.env.RESEND_SUBJECT;
+    const envHtml = process.env.RESEND_HTML;
+    const built = !envSubject || !envHtml ? await buildAiEmail(user) : null;
+    const subject = envSubject || built!.subject;
+    const html = envHtml || built!.html;
 
     const response = await resend.emails.send({
       from: sender,
@@ -335,6 +342,12 @@ export async function deleteUsersAction(
 
 export type TestEmailState = { error: string | null; ok?: boolean } | null;
 
+export async function previewEmailAction(
+  user: UserRow
+): Promise<{ subject: string; html: string; ai: boolean }> {
+  return buildAiEmail(user);
+}
+
 export async function sendTestEmailAction(
   _prev: TestEmailState,
   formData: FormData
@@ -378,11 +391,12 @@ export async function sendTestEmailAction(
       resendError: "",
     };
 
+    const built = await buildAiEmail(previewRow);
     const response = await resend.emails.send({
       from: sender,
       to,
-      subject: `[TEST] ${buildEmailSubject(previewRow)}`,
-      html: buildEmailHtml(previewRow),
+      subject: `[TEST] ${built.subject}`,
+      html: built.html,
       replyTo,
     });
 
